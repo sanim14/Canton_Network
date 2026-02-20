@@ -6,7 +6,8 @@ object Deps {
     // Use getters to propagate .env file dependency version changes to gradle
 
     object daml {
-        val version get() = VersionFiles.dotenv["DAML_RUNTIME_VERSION"]
+        val runtimeVersion get() = VersionFiles.dotenv["DAML_RUNTIME_VERSION"]
+        val version get() = VersionFiles.damlYamlSdk
         val proto get() = "com.daml:ledger-api-proto:$version"
     }
 

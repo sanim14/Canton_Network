@@ -38,8 +38,26 @@ tasks.register<com.digitalasset.transcode.codegen.java.gradle.JavaCodegenTask>("
     dependsOn("compileDaml")
 }
 
+// Only run Daml codegen during build if the Daml SDK CLI is installed.
+// Without the SDK, the daml subproject is a no-op (backend standalone mode works without it).
+val damlCliAvailable: Boolean by lazy {
+    try {
+        val process = ProcessBuilder("daml", "version").redirectErrorStream(true).start()
+        process.inputStream.bufferedReader().readText()
+        process.waitFor() == 0
+    } catch (e: Exception) {
+        false
+    }
+}
+
 tasks.named("build") {
-    dependsOn("codeGen")
+    if (damlCliAvailable) {
+        dependsOn("codeGen")
+    } else {
+        doLast {
+            logger.warn("⚠ Daml SDK not found — skipping Daml codegen. Run 'make install-daml-sdk' for Canton mode.")
+        }
+    }
 }
 
 // Helper function to compute SDK variables
