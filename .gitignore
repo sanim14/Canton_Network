@@ -1,0 +1,37 @@
+# Build artifacts
+/backend/build/
+/frontend/dist/
+/frontend/node_modules/
+/.gradle/
+/buildSrc/.gradle/
+/buildSrc/build/
+
+# Daml SDK and compiled outputs
+/daml/.sdk/
+/daml/**/.daml/
+
+# Environment files (may contain secrets)
+.env
+.env.local
+.env.*.local
+
+# Docker env files with hardcoded secrets
+/docker/modules/keycloak/env/app-provider/on/oauth2.env
+/docker/modules/keycloak/env/app-user/on/oauth2.env
+/docker/modules/pqs/env/app-provider/on/oauth2.env
+/docker/modules/pqs/onboarding/app-provider/on/oauth2.env
+/docker/modules/pqs/onboarding/app-user/on/shared-secret.env
+/docker/backend-service/onboarding/env/oauth2.env
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Grafana dashboards
+/docker/modules/observability/conf/grafana/dashboards/Participant/pqs.json

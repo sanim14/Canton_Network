@@ -1,0 +1,44 @@
+-- | Epoch state management contract.
+module Treasury.Epoch where
+
+import Treasury.Types
+
+-- | Global epoch tracker visible to all participants.
+-- Privacy model: Visible to everyone.
+template EpochState
+  with
+    currentEpoch : Int          -- ^ Current epoch number (0 = not started)
+    totalEpochs : Int           -- ^ Total epochs in the simulation (e.g., 12)
+    phase : EpochPhase          -- ^ Current phase of the epoch
+    operator : Party            -- ^ System operator (signatory)
+    strategyManager : Party     -- ^ Strategy manager (observer)
+    voters : [Party]            -- ^ Voters (observers)
+    auditor : Party             -- ^ Auditor (observer)
+    publicObserver : Party      -- ^ Public viewer (observer)
+  where
+    signatory operator
+    observer strategyManager, auditor, publicObserver
+    observer voters
+
+    -- | Advance to the next epoch (opens reporting phase)
+    choice AdvanceEpoch : ContractId EpochState
+      controller operator
+      do
+        assertMsg "Cannot advance past total epochs" (currentEpoch < totalEpochs)
+        create this with
+          currentEpoch = currentEpoch + 1
+          phase = Reporting
+
+    -- | Open voting phase for current epoch
+    choice OpenVoting : ContractId EpochState
+      controller operator
+      do
+        assertMsg "Must be in reporting phase to open voting" (phase == Reporting)
+        create this with phase = Voting
+
+    -- | Close voting and move to completed phase
+    choice CloseVoting : ContractId EpochState
+      controller operator
+      do
+        assertMsg "Must be in voting phase to close voting" (phase == Voting)
+        create this with phase = Completed

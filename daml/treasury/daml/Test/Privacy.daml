@@ -1,0 +1,168 @@
+-- | Privacy verification tests for the treasury sandbox.
+-- These tests verify that Canton's contract-level privacy works correctly:
+-- different parties see different subsets of contracts.
+module Test.Privacy where
+
+import Daml.Script
+import Treasury.Types
+import Treasury.Strategy
+import Treasury.Performance
+import Treasury.Config
+import Treasury.Epoch
+import Treasury.Governance
+
+-- | Test that voters CANNOT see ConfidentialStrategy contracts
+privacyTest_voterCannotSeeStrategy : Script ()
+privacyTest_voterCannotSeeStrategy = script do
+  -- Setup parties
+  operator <- allocateParty "operator"
+  strategyManager <- allocateParty "strategyManager"
+  voter1 <- allocateParty "voter1"
+  auditor <- allocateParty "auditor"
+  publicObserver <- allocateParty "publicObserver"
+
+  -- Create a confidential strategy
+  strategyCid <- submit strategyManager do
+    createCmd ConfidentialStrategy with
+      strategyId = "strat-1"
+      name = "Blue Chip Hold"
+      riskCategory = Conservative
+      allocations = Allocation with ethWeight = 0.2; btcWeight = 0.2; usdcWeight = 0.6
+      epoch = 1
+      status = Active
+      strategyManager
+      auditor
+
+  -- Voter should NOT be able to see the strategy
+  strategyVisible <- queryContractId voter1 strategyCid
+  assertMsg "Voter should NOT see ConfidentialStrategy" (strategyVisible == None)
+
+  -- Public observer should NOT see the strategy
+  publicVisible <- queryContractId publicObserver strategyCid
+  assertMsg "Public should NOT see ConfidentialStrategy" (publicVisible == None)
+
+  pure ()
+
+-- | Test that auditor CAN see ConfidentialStrategy contracts
+privacyTest_auditorCanSeeStrategy : Script ()
+privacyTest_auditorCanSeeStrategy = script do
+  operator <- allocateParty "operator"
+  strategyManager <- allocateParty "strategyManager"
+  auditor <- allocateParty "auditor"
+
+  strategyCid <- submit strategyManager do
+    createCmd ConfidentialStrategy with
+      strategyId = "strat-1"
+      name = "Blue Chip Hold"
+      riskCategory = Conservative
+      allocations = Allocation with ethWeight = 0.2; btcWeight = 0.2; usdcWeight = 0.6
+      epoch = 1
+      status = Active
+      strategyManager
+      auditor
+
+  -- Auditor SHOULD see the strategy
+  strategyVisible <- queryContractId auditor strategyCid
+  assertMsg "Auditor SHOULD see ConfidentialStrategy" (strategyVisible /= None)
+
+  -- Strategy manager SHOULD see their own strategy
+  managerVisible <- queryContractId strategyManager strategyCid
+  assertMsg "Manager SHOULD see ConfidentialStrategy" (managerVisible /= None)
+
+  pure ()
+
+-- | Test that voters CAN see PerformanceReport contracts
+privacyTest_voterCanSeePerformance : Script ()
+privacyTest_voterCanSeePerformance = script do
+  strategyManager <- allocateParty "strategyManager"
+  voter1 <- allocateParty "voter1"
+  auditor <- allocateParty "auditor"
+  publicObserver <- allocateParty "publicObserver"
+
+  reportCid <- submit strategyManager do
+    createCmd PerformanceReport with
+      strategyId = "strat-1"
+      strategyName = "Blue Chip Hold"
+      riskCategory = Conservative
+      epoch = 1
+      epochReturn = 0.05
+      cumulativeReturn = 0.05
+      maxDrawdown = 0.0
+      strategyManager
+      voters = [voter1]
+      auditor
+      publicObserver
+
+  -- Voter SHOULD see performance reports
+  voterVisible <- queryContractId voter1 reportCid
+  assertMsg "Voter SHOULD see PerformanceReport" (voterVisible /= None)
+
+  pure ()
+
+-- | Test that a voter CANNOT exercise UpdateAllocations on a strategy
+privacyTest_voterCannotUpdateAllocations : Script ()
+privacyTest_voterCannotUpdateAllocations = script do
+  strategyManager <- allocateParty "strategyManager"
+  voter1 <- allocateParty "voter1"
+  auditor <- allocateParty "auditor"
+
+  strategyCid <- submit strategyManager do
+    createCmd ConfidentialStrategy with
+      strategyId = "strat-1"
+      name = "Blue Chip Hold"
+      riskCategory = Conservative
+      allocations = Allocation with ethWeight = 0.2; btcWeight = 0.2; usdcWeight = 0.6
+      epoch = 1
+      status = Active
+      strategyManager
+      auditor
+
+  -- Voter trying to update allocations should fail
+  submitMustFail voter1 do
+    exerciseCmd strategyCid UpdateAllocations with
+      newAllocations = Allocation with ethWeight = 0.5; btcWeight = 0.3; usdcWeight = 0.2
+      currentEpoch = 2
+
+  pure ()
+
+-- | Test epoch advancement workflow
+privacyTest_epochWorkflow : Script ()
+privacyTest_epochWorkflow = script do
+  operator <- allocateParty "operator"
+  strategyManager <- allocateParty "strategyManager"
+  voter1 <- allocateParty "voter1"
+  auditor <- allocateParty "auditor"
+  publicObserver <- allocateParty "publicObserver"
+
+  epochCid <- submit operator do
+    createCmd EpochState with
+      currentEpoch = 0
+      totalEpochs = 12
+      phase = Completed
+      operator
+      strategyManager
+      voters = [voter1]
+      auditor
+      publicObserver
+
+  -- Advance epoch
+  epochCid2 <- submit operator do
+    exerciseCmd epochCid AdvanceEpoch
+
+  -- Verify epoch advanced
+  Some epochState <- queryContractId operator epochCid2
+  assertMsg "Epoch should be 1" (epochState.currentEpoch == 1)
+  assertMsg "Phase should be Reporting" (epochState.phase == Reporting)
+
+  -- Open voting
+  epochCid3 <- submit operator do
+    exerciseCmd epochCid2 OpenVoting
+
+  Some epochState2 <- queryContractId operator epochCid3
+  assertMsg "Phase should be Voting" (epochState2.phase == Voting)
+
+  -- All parties should see epoch state
+  voterVisible <- queryContractId voter1 epochCid3
+  assertMsg "Voter should see EpochState" (voterVisible /= None)
+
+  pure ()

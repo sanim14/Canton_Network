@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+ledger:
+  application-id: treasury-standalone
+  host: localhost
+  port: 6865
+  registry-base-uri: http://localhost:9999
+
+canton:
+  enabled: false
+
+application:
+  tenants:
+    AppProvider:
+      tenantId: AppProvider
+      partyId: standalone-party
+      internal: true

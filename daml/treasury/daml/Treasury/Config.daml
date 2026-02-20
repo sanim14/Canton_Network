@@ -1,0 +1,24 @@
+-- | DAO Configuration contract - role registry visible to all parties.
+module Treasury.Config where
+
+-- | Registry of all DAO roles and parties.
+-- Visible to everyone so all participants know who plays which role.
+template DAOConfig
+  with
+    operator : Party         -- ^ System admin who manages lifecycle
+    strategyManager : Party  -- ^ Creates and manages strategies
+    voters : [Party]         -- ^ DAO voters who vote on eliminations
+    auditor : Party          -- ^ Can see confidential allocations
+    publicObserver : Party   -- ^ Public viewer (sees only public data)
+  where
+    signatory operator
+    observer strategyManager, auditor, publicObserver
+    observer voters
+
+    -- | Update the voter list
+    choice UpdateVoters : ContractId DAOConfig
+      with
+        newVoters : [Party]
+      controller operator
+      do
+        create this with voters = newVoters

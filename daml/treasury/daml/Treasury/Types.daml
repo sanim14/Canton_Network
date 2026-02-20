@@ -1,0 +1,30 @@
+-- | Shared types for the DAO Treasury sandbox.
+module Treasury.Types where
+
+-- | Risk category for a strategy
+data RiskCategory
+  = Conservative
+  | Moderate
+  | Aggressive
+  deriving (Eq, Show, Ord)
+
+-- | Allocation weights for a strategy (percentages as decimals, should sum to 1.0)
+data Allocation = Allocation
+  with
+    ethWeight : Decimal   -- ^ ETH allocation weight (e.g., 0.40 = 40%)
+    btcWeight : Decimal   -- ^ BTC allocation weight
+    usdcWeight : Decimal  -- ^ USDC allocation weight
+  deriving (Eq, Show)
+
+-- | Phase of the current epoch
+data EpochPhase
+  = Reporting   -- ^ Performance data being published
+  | Voting      -- ^ Votes being cast for elimination
+  | Completed   -- ^ Epoch fully processed
+  deriving (Eq, Show)
+
+-- | Status of a strategy
+data StrategyStatus
+  = Active
+  | Eliminated
+  deriving (Eq, Show)

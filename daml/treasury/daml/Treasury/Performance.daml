@@ -1,0 +1,25 @@
+-- | Performance Report contract - public metrics visible to all.
+-- Contains no allocation details, only performance results.
+module Treasury.Performance where
+
+import Treasury.Types
+
+-- | A performance report for a strategy in a specific epoch.
+-- Privacy model: Visible to everyone - this is the public face of a strategy.
+template PerformanceReport
+  with
+    strategyId : Text           -- ^ Links to ConfidentialStrategy
+    strategyName : Text         -- ^ Human-readable name (denormalized)
+    riskCategory : RiskCategory -- ^ Risk classification (denormalized)
+    epoch : Int                 -- ^ Which epoch this report covers
+    epochReturn : Decimal       -- ^ Return for this epoch (e.g., 0.05 = 5%)
+    cumulativeReturn : Decimal  -- ^ Cumulative return from epoch 1 to this epoch
+    maxDrawdown : Decimal       -- ^ Maximum peak-to-trough decline
+    strategyManager : Party     -- ^ Publisher of this report
+    voters : [Party]            -- ^ Voters who can see performance
+    auditor : Party             -- ^ Auditor
+    publicObserver : Party      -- ^ Public viewer
+  where
+    signatory strategyManager
+    observer voters
+    observer auditor, publicObserver

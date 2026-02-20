@@ -1,0 +1,112 @@
+{
+  "epochs": [
+    {
+      "epoch": 1,
+      "label": "Week 1 (Jan 6-12, 2025)",
+      "prices": {
+        "ETH": { "open": 3200, "close": 3350 },
+        "BTC": { "open": 95000, "close": 97500 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 2,
+      "label": "Week 2 (Jan 13-19, 2025)",
+      "prices": {
+        "ETH": { "open": 3350, "close": 3280 },
+        "BTC": { "open": 97500, "close": 96200 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 3,
+      "label": "Week 3 (Jan 20-26, 2025)",
+      "prices": {
+        "ETH": { "open": 3280, "close": 3420 },
+        "BTC": { "open": 96200, "close": 99100 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 4,
+      "label": "Week 4 (Jan 27-Feb 2, 2025)",
+      "prices": {
+        "ETH": { "open": 3420, "close": 3510 },
+        "BTC": { "open": 99100, "close": 101200 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 5,
+      "label": "Week 5 (Feb 3-9, 2025)",
+      "prices": {
+        "ETH": { "open": 3510, "close": 3380 },
+        "BTC": { "open": 101200, "close": 98500 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 6,
+      "label": "Week 6 (Feb 10-16, 2025)",
+      "prices": {
+        "ETH": { "open": 3380, "close": 3450 },
+        "BTC": { "open": 98500, "close": 100800 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 7,
+      "label": "Week 7 (Feb 17-23, 2025)",
+      "prices": {
+        "ETH": { "open": 3450, "close": 3620 },
+        "BTC": { "open": 100800, "close": 103500 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 8,
+      "label": "Week 8 (Feb 24-Mar 2, 2025)",
+      "prices": {
+        "ETH": { "open": 3620, "close": 3550 },
+        "BTC": { "open": 103500, "close": 102100 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 9,
+      "label": "Week 9 (Mar 3-9, 2025)",
+      "prices": {
+        "ETH": { "open": 3550, "close": 3700 },
+        "BTC": { "open": 102100, "close": 105200 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 10,
+      "label": "Week 10 (Mar 10-16, 2025)",
+      "prices": {
+        "ETH": { "open": 3700, "close": 3650 },
+        "BTC": { "open": 105200, "close": 104000 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 11,
+      "label": "Week 11 (Mar 17-23, 2025)",
+      "prices": {
+        "ETH": { "open": 3650, "close": 3820 },
+        "BTC": { "open": 104000, "close": 107500 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    },
+    {
+      "epoch": 12,
+      "label": "Week 12 (Mar 24-30, 2025)",
+      "prices": {
+        "ETH": { "open": 3820, "close": 3950 },
+        "BTC": { "open": 107500, "close": 110200 },
+        "USDC": { "open": 1.00, "close": 1.00 }
+      }
+    }
+  ]
+}
