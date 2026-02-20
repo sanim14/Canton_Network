@@ -33,6 +33,7 @@ public class TreasuryController {
 
     @GetMapping("/mode")
     public ResponseEntity<Map<String, String>> getMode() {
+        long start = System.currentTimeMillis();
         String[] profiles = env.getActiveProfiles();
         boolean isCanton = false;
         for (String p : profiles) {
@@ -41,21 +42,26 @@ public class TreasuryController {
                 break;
             }
         }
-        return ResponseEntity.ok(Map.of("mode", isCanton ? "canton" : "standalone"));
+        String mode = isCanton ? "canton" : "standalone";
+        logger.info("GET /api/mode -> {} ({}ms)", mode, System.currentTimeMillis() - start);
+        return ResponseEntity.ok(Map.of("mode", mode));
     }
 
     // --- DAO Config ---
 
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getDAOConfig() {
+        long start = System.currentTimeMillis();
         DAOConfigData config = treasury.getConfig();
         if (config == null) {
+            logger.info("GET /api/config -> not initialized ({}ms)", System.currentTimeMillis() - start);
             return ResponseEntity.ok(Map.of("message", "Not initialized. POST /api/bootstrap first."));
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("operator", config.operator());
         result.put("members", config.members());
         result.put("publicObserver", config.publicObserver());
+        logger.info("GET /api/config -> ok ({}ms)", System.currentTimeMillis() - start);
         return ResponseEntity.ok(result);
     }
 
@@ -63,6 +69,7 @@ public class TreasuryController {
 
     @GetMapping("/current-party")
     public ResponseEntity<Map<String, String>> getCurrentParty() {
+        long start = System.currentTimeMillis();
         try {
             String party = treasury.getCurrentParty();
             Map<String, String> result = new LinkedHashMap<>();
@@ -70,8 +77,10 @@ public class TreasuryController {
             result.put("isMember", String.valueOf(treasury.isMember()));
             result.put("isOperator", String.valueOf(treasury.isOperator()));
             result.put("hasActiveStrategy", String.valueOf(treasury.hasActiveStrategy()));
+            logger.info("GET /api/current-party -> party={} ({}ms)", party, System.currentTimeMillis() - start);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
+            logger.warn("GET /api/current-party -> unauthorized ({}ms)", System.currentTimeMillis() - start);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Not authenticated"));
         }
     }
@@ -80,12 +89,15 @@ public class TreasuryController {
 
     @PostMapping("/party/switch")
     public ResponseEntity<Map<String, Object>> switchParty(@RequestBody Map<String, String> body) {
+        long start = System.currentTimeMillis();
         String party = body.get("party");
         if (party == null || party.isBlank()) {
+            logger.warn("POST /api/party/switch -> missing party ({}ms)", System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", "Missing 'party' field"));
         }
         Set<String> validParties = Set.of("operator", "member1", "member2", "publicObserver");
         if (!validParties.contains(party)) {
+            logger.warn("POST /api/party/switch -> invalid party={} ({}ms)", party, System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid party: " + party));
         }
         treasury.switchParty(party);
@@ -94,6 +106,7 @@ public class TreasuryController {
         result.put("isMember", treasury.isMember());
         result.put("isOperator", treasury.isOperator());
         result.put("hasActiveStrategy", treasury.hasActiveStrategy());
+        logger.info("POST /api/party/switch -> party={} ({}ms)", party, System.currentTimeMillis() - start);
         return ResponseEntity.ok(result);
     }
 
@@ -101,14 +114,17 @@ public class TreasuryController {
 
     @PostMapping("/bootstrap")
     public ResponseEntity<Map<String, Object>> bootstrapDAO() {
+        long start = System.currentTimeMillis();
         try {
             treasury.bootstrapDAO();
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("message", "DAO bootstrapped successfully");
             result.put("config", treasury.getConfig());
             result.put("epoch", treasury.getEpochState());
+            logger.info("POST /api/bootstrap -> success ({}ms)", System.currentTimeMillis() - start);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
+            logger.warn("POST /api/bootstrap -> failed: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -117,39 +133,51 @@ public class TreasuryController {
 
     @GetMapping("/epoch")
     public ResponseEntity<Map<String, Object>> getEpochState() {
+        long start = System.currentTimeMillis();
         EpochData epoch = treasury.getEpochState();
         if (epoch == null) {
+            logger.info("GET /api/epoch -> not initialized ({}ms)", System.currentTimeMillis() - start);
             return ResponseEntity.ok(Map.of("message", "Not initialized"));
         }
+        logger.info("GET /api/epoch -> epoch={} phase={} ({}ms)", epoch.currentEpoch(), epoch.phase(), System.currentTimeMillis() - start);
         return ResponseEntity.ok(epochToMap(epoch));
     }
 
     @PostMapping("/epoch/advance")
     public ResponseEntity<Map<String, Object>> advanceEpoch() {
+        long start = System.currentTimeMillis();
         try {
             EpochData epoch = treasury.advanceEpoch();
+            logger.info("POST /api/epoch/advance -> epoch={} ({}ms)", epoch.currentEpoch(), System.currentTimeMillis() - start);
             return ResponseEntity.ok(epochToMap(epoch));
         } catch (IllegalStateException e) {
+            logger.warn("POST /api/epoch/advance -> failed: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 
     @PostMapping("/epoch/open-voting")
     public ResponseEntity<Map<String, Object>> openVoting() {
+        long start = System.currentTimeMillis();
         try {
             EpochData epoch = treasury.openVoting();
+            logger.info("POST /api/epoch/open-voting -> epoch={} ({}ms)", epoch.currentEpoch(), System.currentTimeMillis() - start);
             return ResponseEntity.ok(epochToMap(epoch));
         } catch (IllegalStateException e) {
+            logger.warn("POST /api/epoch/open-voting -> failed: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 
     @PostMapping("/epoch/close-voting")
     public ResponseEntity<Map<String, Object>> closeVoting() {
+        long start = System.currentTimeMillis();
         try {
             EpochData epoch = treasury.closeVoting();
+            logger.info("POST /api/epoch/close-voting -> epoch={} ({}ms)", epoch.currentEpoch(), System.currentTimeMillis() - start);
             return ResponseEntity.ok(epochToMap(epoch));
         } catch (IllegalStateException e) {
+            logger.warn("POST /api/epoch/close-voting -> failed: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -158,14 +186,17 @@ public class TreasuryController {
 
     @GetMapping("/strategies")
     public ResponseEntity<List<Map<String, Object>>> listStrategies() {
+        long start = System.currentTimeMillis();
         List<Map<String, Object>> result = treasury.listStrategies().stream()
                 .map(this::strategyToMap)
                 .collect(Collectors.toList());
+        logger.info("GET /api/strategies -> {} strategies, party={} ({}ms)", result.size(), treasury.getCurrentParty(), System.currentTimeMillis() - start);
         return ResponseEntity.ok(result);
     }
 
     @PostMapping("/strategies")
     public ResponseEntity<?> createStrategy(@RequestBody Map<String, Object> body) {
+        long start = System.currentTimeMillis();
         try {
             String name = (String) body.get("name");
             @SuppressWarnings("unchecked")
@@ -176,10 +207,13 @@ public class TreasuryController {
             }
 
             StrategyData strategy = treasury.createStrategy(name, allocations);
+            logger.info("POST /api/strategies -> created '{}' by {} ({}ms)", name, treasury.getCurrentParty(), System.currentTimeMillis() - start);
             return ResponseEntity.status(HttpStatus.CREATED).body(strategyToMap(strategy));
         } catch (IllegalStateException e) {
+            logger.warn("POST /api/strategies -> forbidden: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
+            logger.warn("POST /api/strategies -> error: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -189,6 +223,7 @@ public class TreasuryController {
             @PathVariable String strategyId,
             @RequestBody Map<String, Object> body
     ) {
+        long start = System.currentTimeMillis();
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> rawAlloc = (Map<String, Object>) body.get("allocations");
@@ -198,10 +233,13 @@ public class TreasuryController {
             }
 
             StrategyData strategy = treasury.updateAllocations(strategyId, allocations);
+            logger.info("PUT /api/strategies/{}/allocations -> updated by {} ({}ms)", strategyId, treasury.getCurrentParty(), System.currentTimeMillis() - start);
             return ResponseEntity.ok(strategyToMap(strategy));
         } catch (NoSuchElementException e) {
+            logger.warn("PUT /api/strategies/{}/allocations -> not found ({}ms)", strategyId, System.currentTimeMillis() - start);
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
+            logger.warn("PUT /api/strategies/{}/allocations -> error: {} ({}ms)", strategyId, e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -210,9 +248,11 @@ public class TreasuryController {
 
     @GetMapping("/performance")
     public ResponseEntity<List<Map<String, Object>>> listPerformanceReports() {
+        long start = System.currentTimeMillis();
         List<Map<String, Object>> result = treasury.listPerformanceReports().stream()
                 .map(this::performanceToMap)
                 .collect(Collectors.toList());
+        logger.info("GET /api/performance -> {} reports ({}ms)", result.size(), System.currentTimeMillis() - start);
         return ResponseEntity.ok(result);
     }
 
@@ -220,38 +260,69 @@ public class TreasuryController {
 
     @GetMapping("/votes/{epoch}")
     public ResponseEntity<List<Map<String, Object>>> getVotes(@PathVariable int epoch) {
+        long start = System.currentTimeMillis();
         List<Map<String, Object>> result = treasury.getVotesForEpoch(epoch).stream()
                 .map(this::voteToMap)
                 .collect(Collectors.toList());
+        logger.info("GET /api/votes/{} -> {} votes ({}ms)", epoch, result.size(), System.currentTimeMillis() - start);
         return ResponseEntity.ok(result);
     }
 
     @PostMapping("/votes")
     public ResponseEntity<?> castVote(@RequestBody Map<String, String> body) {
+        long start = System.currentTimeMillis();
         try {
             String targetStrategyId = body.get("targetStrategyId");
             VoteData vote = treasury.castVote(targetStrategyId);
+            logger.info("POST /api/votes -> voter={} target={} ({}ms)", vote.voter(), targetStrategyId, System.currentTimeMillis() - start);
             return ResponseEntity.status(HttpStatus.CREATED).body(voteToMap(vote));
         } catch (IllegalStateException e) {
+            logger.warn("POST /api/votes -> failed: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 
     @PostMapping("/elimination/execute")
     public ResponseEntity<?> executeElimination() {
+        long start = System.currentTimeMillis();
         try {
             EliminationData result = treasury.executeElimination();
+            logger.info("POST /api/elimination/execute -> eliminated '{}' epoch={} ({}ms)", result.eliminatedStrategyName(), result.epoch(), System.currentTimeMillis() - start);
             return ResponseEntity.ok(eliminationToMap(result));
         } catch (IllegalStateException e) {
+            logger.warn("POST /api/elimination/execute -> failed: {} ({}ms)", e.getMessage(), System.currentTimeMillis() - start);
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 
     @GetMapping("/eliminations")
     public ResponseEntity<List<Map<String, Object>>> listEliminations() {
+        long start = System.currentTimeMillis();
         List<Map<String, Object>> result = treasury.listEliminations().stream()
                 .map(this::eliminationToMap)
                 .collect(Collectors.toList());
+        logger.info("GET /api/eliminations -> {} results ({}ms)", result.size(), System.currentTimeMillis() - start);
+        return ResponseEntity.ok(result);
+    }
+
+    // --- Risk Philosophy ---
+
+    @GetMapping("/risk-philosophy")
+    public ResponseEntity<Map<String, Object>> getRiskPhilosophy() {
+        long start = System.currentTimeMillis();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("measured", List.of(
+                Map.of("metric", "Epoch Return", "definition", "Weighted sum of token price changes within a single epoch"),
+                Map.of("metric", "Cumulative Return", "definition", "Compounded product of all epoch returns since strategy creation"),
+                Map.of("metric", "Max Drawdown", "definition", "Largest peak-to-trough decline in cumulative return series")
+        ));
+        result.put("philosophy", List.of(
+                Map.of("principle", "Allocations are Private", "rationale", "Prevents front-running and copycat strategies"),
+                Map.of("principle", "Performance is Public", "rationale", "Ensures accountability for governance decisions"),
+                Map.of("principle", "Democratic Elimination", "rationale", "Prevents capital concentration risk"),
+                Map.of("principle", "Strategy Renewal", "rationale", "Encourages adaptation and continuous improvement")
+        ));
+        logger.info("GET /api/risk-philosophy -> ok ({}ms)", System.currentTimeMillis() - start);
         return ResponseEntity.ok(result);
     }
 

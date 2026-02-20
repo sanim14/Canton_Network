@@ -54,7 +54,7 @@ const navItems = [
 const Sidebar: React.FC = () => (
   <>
     <aside className="ts-sidebar">
-      <NavLink to="/dashboard" className="ts-sidebar-brand">
+      <NavLink to="/" className="ts-sidebar-brand">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="1.5">
           <rect x="3" y="11" width="18" height="11" rx="2" />
           <path d="M7 11V7a5 5 0 0110 0v4" />

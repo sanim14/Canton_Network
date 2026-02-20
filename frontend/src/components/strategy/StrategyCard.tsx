@@ -5,6 +5,8 @@ interface StrategyCardProps {
   strategy: Strategy;
   rank: number;
   perf?: PerformanceReport;
+  livePrices?: Record<string, { usdPrice: number; usd24hChange: number }>;
+  isDemoMode?: boolean;
 }
 
 const TOKEN_COLORS: Record<string, string> = {
@@ -25,7 +27,6 @@ function getTokenColor(coinId: string, index: number): string {
 }
 
 function formatCoinId(coinId: string): string {
-  // bitcoin -> BTC, ethereum -> ETH, etc.
   const short: Record<string, string> = {
     bitcoin: 'BTC', ethereum: 'ETH', solana: 'SOL',
     'usd-coin': 'USDC', tether: 'USDT', 'binancecoin': 'BNB',
@@ -34,7 +35,7 @@ function formatCoinId(coinId: string): string {
   return short[coinId] ?? coinId.slice(0, 5).toUpperCase();
 }
 
-const StrategyCard: React.FC<StrategyCardProps> = ({ strategy: s, rank: i, perf }) => {
+const StrategyCard: React.FC<StrategyCardProps> = ({ strategy: s, rank: i, perf, livePrices, isDemoMode }) => {
   const cum = perf?.cumulativeReturn ?? 0;
   const dd = perf?.maxDrawdown ?? 0;
   const er = perf?.epochReturn ?? 0;
@@ -72,7 +73,7 @@ const StrategyCard: React.FC<StrategyCardProps> = ({ strategy: s, rank: i, perf 
           )}
         </div>
       </div>
-      <div className="ts-card-metrics">
+      <div className={`ts-card-metrics ${isDemoMode && !s.isAllocationsVisible ? 'ts-demo-sensitive' : ''}`}>
         <div className="ts-metric">
           <span className="ts-metric-label">Cumulative</span>
           <span className={`ts-metric-value ${cum >= 0 ? 'ts-positive' : 'ts-negative'}`}>
@@ -97,17 +98,27 @@ const StrategyCard: React.FC<StrategyCardProps> = ({ strategy: s, rank: i, perf 
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
             </svg>
-            {Object.entries(s.allocations).map(([coinId, weight], idx) => (
-              <React.Fragment key={coinId}>
-                {idx > 0 && <span className="ts-alloc-divider">|</span>}
-                <span className="ts-alloc-item" style={{ color: getTokenColor(coinId, idx) }}>
-                  {formatCoinId(coinId)} <b>{(weight * 100).toFixed(0)}%</b>
-                </span>
-              </React.Fragment>
-            ))}
+            {Object.entries(s.allocations).map(([coinId, weight], idx) => {
+              const price = livePrices?.[coinId];
+              return (
+                <React.Fragment key={coinId}>
+                  {idx > 0 && <span className="ts-alloc-divider">|</span>}
+                  <span className="ts-alloc-item" style={{ color: getTokenColor(coinId, idx) }}>
+                    {formatCoinId(coinId)} <b>{(weight * 100).toFixed(0)}%</b>
+                    {price && (
+                      <span className={`ts-live-price ${price.usd24hChange >= 0 ? 'ts-live-price-up' : 'ts-live-price-down'}`}
+                        style={{ marginLeft: 4 }}>
+                        ${price.usdPrice.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {' '}{price.usd24hChange >= 0 ? '+' : ''}{price.usd24hChange.toFixed(1)}%
+                      </span>
+                    )}
+                  </span>
+                </React.Fragment>
+              );
+            })}
           </div>
         ) : (
-          <div className="ts-alloc-hidden">
+          <div className={`ts-alloc-hidden ${isDemoMode ? 'ts-demo-blur-overlay' : ''}`}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2">
               <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>

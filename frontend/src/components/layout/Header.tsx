@@ -75,7 +75,7 @@ const Header: React.FC<HeaderProps> = ({
             onClick={() => navigate('/login')}
             style={{ padding: '4px 12px', fontSize: 11 }}
           >
-            Select Party
+            Sign In
           </button>
         )}
 

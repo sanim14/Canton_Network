@@ -8,7 +8,7 @@ const SettingsPage: React.FC = () => {
   return (
     <>
       <div className="ts-page-header">
-        <h1 className="ts-page-title">Settings</h1>
+        <h1 className="ts-page-title ts-gradient-heading">Settings</h1>
         <p className="ts-page-subtitle">Profile information and DAO configuration</p>
       </div>
 
@@ -98,6 +98,61 @@ const SettingsPage: React.FC = () => {
               <span className="ts-settings-value" style={{ fontSize: 11, color: '#64748b' }}>{meta.description}</span>
             </div>
           ))}
+        </div>
+
+        {/* Risk Philosophy */}
+        <div className="ts-settings-card ts-risk-philosophy">
+          <h3>Risk Philosophy</h3>
+          <div className="ts-risk-columns">
+            <div className="ts-risk-col">
+              <h4>Measured</h4>
+              <div className="ts-risk-item">
+                <div className="ts-risk-item-label">Epoch Return</div>
+                <div className="ts-risk-item-desc">
+                  Weighted sum of token price changes within a single epoch, based on the strategy's allocation percentages.
+                </div>
+              </div>
+              <div className="ts-risk-item">
+                <div className="ts-risk-item-label">Cumulative Return</div>
+                <div className="ts-risk-item-desc">
+                  Compounded product of all epoch returns since strategy creation. Captures long-term performance.
+                </div>
+              </div>
+              <div className="ts-risk-item">
+                <div className="ts-risk-item-label">Max Drawdown</div>
+                <div className="ts-risk-item-desc">
+                  Largest peak-to-trough decline in the cumulative return series. Measures worst-case loss exposure.
+                </div>
+              </div>
+            </div>
+            <div className="ts-risk-col">
+              <h4>Philosophy</h4>
+              <div className="ts-risk-item">
+                <div className="ts-risk-item-label">Allocations are Private</div>
+                <div className="ts-risk-item-desc">
+                  Prevents front-running and copycat strategies. Each strategist competes on merit, not information asymmetry.
+                </div>
+              </div>
+              <div className="ts-risk-item">
+                <div className="ts-risk-item-label">Performance is Public</div>
+                <div className="ts-risk-item-desc">
+                  Ensures accountability. All DAO members can evaluate strategy results fairly for governance decisions.
+                </div>
+              </div>
+              <div className="ts-risk-item">
+                <div className="ts-risk-item-label">Democratic Elimination</div>
+                <div className="ts-risk-item-desc">
+                  Prevents capital concentration risk. Underperformers are removed by collective vote, not unilateral decision.
+                </div>
+              </div>
+              <div className="ts-risk-item">
+                <div className="ts-risk-item-label">Strategy Renewal</div>
+                <div className="ts-risk-item-desc">
+                  Eliminated strategists can immediately resubmit. Encourages adaptation and continuous improvement.
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </>

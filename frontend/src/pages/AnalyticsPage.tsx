@@ -19,7 +19,7 @@ const AnalyticsPage: React.FC = () => {
   return (
     <>
       <div className="ts-page-header">
-        <h1 className="ts-page-title">Analytics</h1>
+        <h1 className="ts-page-title ts-gradient-heading">Analytics</h1>
         <p className="ts-page-subtitle">Performance data and strategy metrics</p>
       </div>
 

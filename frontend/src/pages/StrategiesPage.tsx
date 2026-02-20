@@ -39,7 +39,7 @@ const StrategiesPage: React.FC = () => {
       <div className="ts-page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h1 className="ts-page-title">Strategies</h1>
+            <h1 className="ts-page-title ts-gradient-heading">Strategies</h1>
             <p className="ts-page-subtitle">Manage and view treasury allocation strategies</p>
           </div>
           {canCreate && (

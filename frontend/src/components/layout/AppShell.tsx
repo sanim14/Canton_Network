@@ -1,13 +1,16 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import Toast from '../common/Toast';
 import { useTreasury } from '../../hooks/useTreasury';
 import { TreasuryContext } from '../../contexts/TreasuryContext';
+import { useDemo } from '../../contexts/DemoContext';
 
 const AppShell: React.FC = () => {
   const treasury = useTreasury();
+  const { isDemoMode, exitDemo } = useDemo();
+  const navigate = useNavigate();
 
   if (treasury.loading) {
     return (
@@ -35,6 +38,21 @@ const AppShell: React.FC = () => {
   return (
     <TreasuryContext.Provider value={treasury}>
       {treasury.toast && <Toast msg={treasury.toast.msg} type={treasury.toast.type} />}
+      {isDemoMode && (
+        <div className="ts-demo-banner">
+          <span>DEMO MODE &mdash; Data shown is simulated.</span>
+          <button
+            onClick={() => { exitDemo(); navigate('/login'); }}
+            style={{
+              background: 'none', border: '1px solid #fbbf2444', borderRadius: 4,
+              color: '#fbbf24', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700,
+              padding: '2px 10px', cursor: 'pointer', marginLeft: 8,
+            }}
+          >
+            Sign in for live data
+          </button>
+        </div>
+      )}
       <div className="ts-app-shell">
         <Sidebar />
         <div className="ts-app-content">

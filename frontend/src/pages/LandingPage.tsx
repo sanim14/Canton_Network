@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const WALKTHROUGH_STEPS = [
   {
@@ -94,6 +94,7 @@ const WALKTHROUGH_STEPS = [
 
 const LandingPage: React.FC = () => {
   const [step, setStep] = useState(0);
+  const navigate = useNavigate();
 
   const nextStep = useCallback(() => {
     setStep(s => (s + 1) % WALKTHROUGH_STEPS.length);
@@ -105,6 +106,11 @@ const LandingPage: React.FC = () => {
   }, [nextStep]);
 
   const current = WALKTHROUGH_STEPS[step];
+
+  const handleTryDemo = () => {
+    localStorage.setItem('treasury_demo', 'true');
+    navigate('/dashboard');
+  };
 
   return (
     <div className="ts-landing">
@@ -118,9 +124,16 @@ const LandingPage: React.FC = () => {
           </svg>
           <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 16 }}>Treasury Sandbox</span>
         </div>
-        <div className="ts-landing-nav-links">
-          <Link to="/login" className="ts-hero-cta-primary" style={{ padding: '10px 24px', fontSize: 13 }}>
-            Select Party
+        <div className="ts-landing-nav-links" style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={handleTryDemo}
+            className="ts-hero-cta-secondary"
+            style={{ padding: '8px 20px', fontSize: 12, border: '1px solid var(--border-2)' }}
+          >
+            Try Demo
+          </button>
+          <Link to="/login" className="ts-hero-cta-primary" style={{ padding: '8px 20px', fontSize: 12 }}>
+            Sign In
           </Link>
         </div>
       </nav>
@@ -134,7 +147,12 @@ const LandingPage: React.FC = () => {
             <circle cx="12" cy="16" r="1.5"/>
           </svg>
         </div>
-        <div className="ts-hero-badge">Canton L1 Privacy dApp</div>
+        <div className="ts-hero-badge" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-10-10h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+          </svg>
+          Built on Canton Network &mdash; Sub-second Privacy L1
+        </div>
         <h1>
           <span className="ts-gradient-text">Privacy-Preserving</span>
           <br />
@@ -146,11 +164,17 @@ const LandingPage: React.FC = () => {
         </p>
         <div className="ts-hero-ctas">
           <Link to="/login" className="ts-hero-cta-primary">
-            Select Party
+            Sign In
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
           </Link>
+          <button onClick={handleTryDemo} className="ts-hero-cta-secondary" style={{ cursor: 'pointer' }}>
+            Try Demo
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="5 3 19 12 5 21"/>
+            </svg>
+          </button>
           <a href="#walkthrough" className="ts-hero-cta-secondary">
             See How It Works
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -203,6 +227,22 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Powered by Canton */}
+      <section className="ts-canton-section">
+        <div className="ts-features-title">Powered by Canton Network</div>
+        <div className="ts-canton-card">
+          <p>
+            Canton is the only production-grade blockchain with per-contract privacy at the infrastructure level.
+            Every transaction is private by default &mdash; parties only see contracts where they are stakeholders.
+          </p>
+          <div className="ts-canton-badges">
+            <span className="ts-canton-badge">Per-Contract Privacy</span>
+            <span className="ts-canton-badge">Sub-Second Finality</span>
+            <span className="ts-canton-badge">Composable Smart Contracts</span>
+          </div>
+        </div>
+      </section>
+
       {/* Walkthrough */}
       <section className="ts-walkthrough" id="walkthrough">
         <div className="ts-walkthrough-title">How It Works</div>
@@ -239,7 +279,7 @@ const LandingPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="ts-landing-footer">
-        <span>Built for ETHDenver 2026 — Canton L1 Privacy dApp Prize</span>
+        <span>Built for ETHDenver 2026 &mdash; Canton L1 Privacy dApp Prize</span>
         <span className="ts-footer-dot" />
         <span>Powered by Daml + Canton Network</span>
       </footer>

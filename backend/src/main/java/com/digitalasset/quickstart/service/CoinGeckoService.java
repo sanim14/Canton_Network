@@ -59,6 +59,10 @@ public class CoinGeckoService {
         }, 60, 60, TimeUnit.SECONDS);
     }
 
+    public int getAvailablePermits() {
+        return rateLimiter.availablePermits();
+    }
+
     public List<PriceResult> getCurrentPrices(List<String> coinIds) {
         List<PriceResult> results = new ArrayList<>();
         List<String> uncached = new ArrayList<>();

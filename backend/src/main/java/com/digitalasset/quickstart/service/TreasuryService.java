@@ -29,7 +29,7 @@ public class TreasuryService implements TreasuryServiceInterface {
     private final List<PerformanceData> performanceReports = Collections.synchronizedList(new ArrayList<>());
     private final List<VoteData> votes = Collections.synchronizedList(new ArrayList<>());
     private final List<EliminationData> eliminations = Collections.synchronizedList(new ArrayList<>());
-    private String currentParty = "publicObserver";
+    private volatile String currentParty = "publicObserver";
 
     // Price data loaded from static data
     private List<EpochPrices> priceData;

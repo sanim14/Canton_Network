@@ -4,8 +4,10 @@ import { PARTY_META } from '../types';
 interface AuthContextType {
   partyId: string | null;
   partyLabel: string;
+  role: string | null;
   isAuthenticated: boolean;
   loading: boolean;
+  login: (username: string, password: string) => Promise<{ partyId: string; role: string; label: string }>;
   loginAsParty: (partyId: string) => Promise<void>;
   logout: () => void;
 }
@@ -20,11 +22,27 @@ export function useAuth(): AuthContextType {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [partyId, setPartyId] = useState<string | null>(() => localStorage.getItem('treasury_party'));
+  const [role, setRole] = useState<string | null>(() => localStorage.getItem('treasury_role'));
   const [loading] = useState(false);
 
+  const login = useCallback(async (username: string, _password: string) => {
+    const resp = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    });
+    if (!resp.ok) throw new Error('Login failed');
+    const data = await resp.json();
+
+    setPartyId(data.partyId);
+    setRole(data.role);
+    localStorage.setItem('treasury_party', data.partyId);
+    localStorage.setItem('treasury_role', data.role);
+
+    return { partyId: data.partyId, role: data.role, label: data.label };
+  }, []);
+
   const loginAsParty = useCallback(async (id: string) => {
-    // For Canton shared-secret mode: POST to /login form endpoint
-    // For standalone mode: POST to /api/party/switch
     const mode = localStorage.getItem('treasury_mode');
     if (mode === 'canton') {
       const formData = new URLSearchParams();
@@ -47,7 +65,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Login failed');
       }
     } else {
-      // Standalone mode: tell backend which party we are
       await fetch('/api/party/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -60,8 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     setPartyId(null);
+    setRole(null);
     localStorage.removeItem('treasury_party');
-    // For Canton mode, also hit the logout endpoint
+    localStorage.removeItem('treasury_role');
     fetch('/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   }, []);
 
@@ -71,8 +89,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{
       partyId,
       partyLabel,
+      role,
       isAuthenticated: !!partyId,
       loading,
+      login,
       loginAsParty,
       logout,
     }}>
