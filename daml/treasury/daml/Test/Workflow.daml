@@ -9,27 +9,22 @@ import Treasury.Governance
 import Treasury.Config
 import Treasury.Epoch
 
--- | Full end-to-end workflow test
+-- | Full end-to-end workflow test with 4-party model
 fullDemoWorkflow : Script ()
 fullDemoWorkflow = script do
   -- 1. Allocate all parties
   operator <- allocateParty "operator"
-  strategyManager <- allocateParty "strategyManager"
-  voter1 <- allocateParty "voter1"
-  voter2 <- allocateParty "voter2"
-  voter3 <- allocateParty "voter3"
-  auditor <- allocateParty "auditor"
+  member1 <- allocateParty "member1"
+  member2 <- allocateParty "member2"
   publicObserver <- allocateParty "publicObserver"
 
-  let allVoters = [voter1, voter2, voter3]
+  let allMembers = [member1, member2]
 
   -- 2. Create DAO Config
   _configCid <- submit operator do
     createCmd DAOConfig with
       operator
-      strategyManager
-      voters = allVoters
-      auditor
+      members = allMembers
       publicObserver
 
   -- 3. Create Epoch State at epoch 0
@@ -39,159 +34,127 @@ fullDemoWorkflow = script do
       totalEpochs = 12
       phase = Completed
       operator
-      strategyManager
-      voters = allVoters
-      auditor
+      members = allMembers
       publicObserver
 
-  -- 4. Create 3 strategies (CONFIDENTIAL - only manager + auditor see allocations)
-  strat1Cid <- submit strategyManager do
+  -- 4. Member1 creates a strategy (CONFIDENTIAL - only creator + operator)
+  strat1Cid <- submit member1 do
     createCmd ConfidentialStrategy with
-      strategyId = "strat-conservative"
+      strategyId = "strat-bluechip"
       name = "Blue Chip Hold"
-      riskCategory = Conservative
-      allocations = Allocation with ethWeight = 0.2; btcWeight = 0.2; usdcWeight = 0.6
+      allocations = Allocation with weights = [("bitcoin", 0.5), ("ethereum", 0.3), ("usd-coin", 0.2)]
       epoch = 0
       status = Active
-      strategyManager
-      auditor
+      creator = member1
+      operator
 
-  strat2Cid <- submit strategyManager do
+  -- 5. Member2 creates a different strategy
+  strat2Cid <- submit member2 do
     createCmd ConfidentialStrategy with
-      strategyId = "strat-moderate"
-      name = "Momentum Alpha"
-      riskCategory = Moderate
-      allocations = Allocation with ethWeight = 0.4; btcWeight = 0.4; usdcWeight = 0.2
-      epoch = 0
-      status = Active
-      strategyManager
-      auditor
-
-  strat3Cid <- submit strategyManager do
-    createCmd ConfidentialStrategy with
-      strategyId = "strat-aggressive"
+      strategyId = "strat-degen"
       name = "Degen Yield"
-      riskCategory = Aggressive
-      allocations = Allocation with ethWeight = 0.6; btcWeight = 0.3; usdcWeight = 0.1
+      allocations = Allocation with weights = [("bitcoin", 0.2), ("ethereum", 0.8)]
       epoch = 0
       status = Active
-      strategyManager
-      auditor
+      creator = member2
+      operator
 
-  -- 5. Advance to epoch 1
+  -- 6. Advance to epoch 1
   epochCid1 <- submit operator do
     exerciseCmd epochCid AdvanceEpoch
 
-  -- 6. Publish performance reports (PUBLIC - everyone can see)
-  _report1 <- submit strategyManager do
+  -- 7. Publish performance reports (PUBLIC - everyone can see)
+  _report1 <- submit operator do
     createCmd PerformanceReport with
-      strategyId = "strat-conservative"
+      strategyId = "strat-bluechip"
       strategyName = "Blue Chip Hold"
-      riskCategory = Conservative
       epoch = 1
       epochReturn = 0.025
       cumulativeReturn = 0.025
       maxDrawdown = 0.0
-      strategyManager
-      voters = allVoters
-      auditor
+      operator
+      members = allMembers
       publicObserver
 
-  _report2 <- submit strategyManager do
+  _report2 <- submit operator do
     createCmd PerformanceReport with
-      strategyId = "strat-moderate"
-      strategyName = "Momentum Alpha"
-      riskCategory = Moderate
-      epoch = 1
-      epochReturn = 0.047
-      cumulativeReturn = 0.047
-      maxDrawdown = 0.0
-      strategyManager
-      voters = allVoters
-      auditor
-      publicObserver
-
-  _report3 <- submit strategyManager do
-    createCmd PerformanceReport with
-      strategyId = "strat-aggressive"
+      strategyId = "strat-degen"
       strategyName = "Degen Yield"
-      riskCategory = Aggressive
       epoch = 1
       epochReturn = -0.031
       cumulativeReturn = -0.031
       maxDrawdown = -0.031
-      strategyManager
-      voters = allVoters
-      auditor
+      operator
+      members = allMembers
       publicObserver
 
-  -- 7. Open voting
+  -- 8. Open voting
   epochCid2 <- submit operator do
     exerciseCmd epochCid1 OpenVoting
 
-  -- 8. Cast votes (PUBLIC - everyone can see who voted for what)
-  _vote1 <- submit voter1 do
+  -- 9. Cast votes (PUBLIC - everyone can see who voted for what)
+  _vote1 <- submit member1 do
     createCmd EliminationVote with
-      voter = voter1
+      voter = member1
       epoch = 1
-      targetStrategyId = "strat-aggressive"
-      strategyManager
-      auditor
+      targetStrategyId = "strat-degen"
+      operator
+      members = allMembers
       publicObserver
 
-  _vote2 <- submit voter2 do
+  _vote2 <- submit member2 do
     createCmd EliminationVote with
-      voter = voter2
+      voter = member2
       epoch = 1
-      targetStrategyId = "strat-aggressive"
-      strategyManager
-      auditor
+      targetStrategyId = "strat-bluechip"
+      operator
+      members = allMembers
       publicObserver
 
-  _vote3 <- submit voter3 do
-    createCmd EliminationVote with
-      voter = voter3
-      epoch = 1
-      targetStrategyId = "strat-conservative"
-      strategyManager
-      auditor
-      publicObserver
-
-  -- 9. Close voting
+  -- 10. Close voting
   epochCid3 <- submit operator do
     exerciseCmd epochCid2 CloseVoting
 
-  -- 10. Record elimination result
+  -- 11. Record elimination result (tie-break: strat-degen eliminated)
   _eliminationCid <- submit operator do
     createCmd EliminationResult with
       epoch = 1
-      eliminatedStrategyId = "strat-aggressive"
+      eliminatedStrategyId = "strat-degen"
       eliminatedStrategyName = "Degen Yield"
-      voteTally = [("strat-aggressive", 2), ("strat-conservative", 1)]
+      voteTally = [("strat-degen", 1), ("strat-bluechip", 1)]
       operator
-      strategyManager
-      voters = allVoters
-      auditor
+      members = allMembers
       publicObserver
 
-  -- 11. Archive the eliminated strategy
-  _archivedCid <- submit strategyManager do
-    exerciseCmd strat3Cid ArchiveStrategy with eliminationEpoch = 1
+  -- 12. Archive the eliminated strategy (operator exercises ArchiveStrategy)
+  _archivedCid <- submit operator do
+    exerciseCmd strat2Cid ArchiveStrategy with eliminationEpoch = 1
 
-  -- 12. Verify privacy: voter can see performance but not allocations
-  voterStrategies <- queryContractId voter1 strat1Cid
-  assertMsg "Voter should NOT see strategy allocations" (voterStrategies == None)
+  -- 13. Verify privacy: member2 CANNOT see member1's strategy allocations
+  member2Sees <- queryContractId member2 strat1Cid
+  assertMsg "Member2 should NOT see Member1's strategy" (member2Sees == None)
 
-  -- Voter CAN query performance reports
-  voterPerf <- query @PerformanceReport voter1
-  assertMsg "Voter should see performance reports" (length voterPerf == 3)
+  -- Member1 CAN see their own strategy
+  member1Sees <- queryContractId member1 strat1Cid
+  assertMsg "Member1 SHOULD see own strategy" (member1Sees /= None)
 
-  -- Auditor CAN see strategy allocations
-  auditorStrategy <- queryContractId auditor strat1Cid
-  assertMsg "Auditor SHOULD see strategy allocations" (auditorStrategy /= None)
+  -- All parties can see performance reports
+  publicPerf <- query @PerformanceReport publicObserver
+  assertMsg "Public should see performance reports" (length publicPerf == 2)
 
   -- Public can see elimination results
   publicEliminations <- query @EliminationResult publicObserver
   assertMsg "Public should see elimination results" (length publicEliminations == 1)
+
+  -- 14. Eliminated member (member2) can create a new strategy
+  _newStratCid <- submit member2 do
+    createCmd ConfidentialStrategy with
+      strategyId = "strat-recovery"
+      name = "Recovery Play"
+      allocations = Allocation with weights = [("bitcoin", 0.6), ("ethereum", 0.4)]
+      epoch = 1
+      status = Active
+      creator = member2
+      operator
 
   pure ()

@@ -1,19 +1,12 @@
 -- | Shared types for the DAO Treasury sandbox.
 module Treasury.Types where
 
--- | Risk category for a strategy
-data RiskCategory
-  = Conservative
-  | Moderate
-  | Aggressive
-  deriving (Eq, Show, Ord)
-
--- | Allocation weights for a strategy (percentages as decimals, should sum to 1.0)
+-- | Dynamic allocation weights for a strategy.
+-- Each entry is (coinGeckoId, weight) e.g. [("bitcoin", 0.4), ("ethereum", 0.3), ("solana", 0.3)]
+-- Weights must sum to 1.0.
 data Allocation = Allocation
   with
-    ethWeight : Decimal   -- ^ ETH allocation weight (e.g., 0.40 = 40%)
-    btcWeight : Decimal   -- ^ BTC allocation weight
-    usdcWeight : Decimal  -- ^ USDC allocation weight
+    weights : [(Text, Decimal)]
   deriving (Eq, Show)
 
 -- | Phase of the current epoch

@@ -2,23 +2,21 @@
 module Treasury.Config where
 
 -- | Registry of all DAO roles and parties.
--- Visible to everyone so all participants know who plays which role.
+-- Visible to everyone so all participants know the DAO membership.
 template DAOConfig
   with
-    operator : Party         -- ^ System admin who manages lifecycle
-    strategyManager : Party  -- ^ Creates and manages strategies
-    voters : [Party]         -- ^ DAO voters who vote on eliminations
-    auditor : Party          -- ^ Can see confidential allocations
-    publicObserver : Party   -- ^ Public viewer (sees only public data)
+    operator : Party            -- ^ System admin who manages lifecycle
+    members : [Party]           -- ^ DAO members (can create strategies + vote)
+    publicObserver : Party      -- ^ Public viewer (sees only public data)
   where
     signatory operator
-    observer strategyManager, auditor, publicObserver
-    observer voters
+    observer members
+    observer publicObserver
 
-    -- | Update the voter list
-    choice UpdateVoters : ContractId DAOConfig
+    -- | Update the member list
+    choice UpdateMembers : ContractId DAOConfig
       with
-        newVoters : [Party]
+        newMembers : [Party]
       controller operator
       do
-        create this with voters = newVoters
+        create this with members = newMembers

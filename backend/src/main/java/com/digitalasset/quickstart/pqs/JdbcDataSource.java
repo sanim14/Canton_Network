@@ -18,6 +18,7 @@ import javax.sql.DataSource;
  * Configuration class that sets up a DataSource and JdbcTemplate for interacting with a Postgres database.
  */
 @Configuration
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "canton.enabled", havingValue = "true")
 public class JdbcDataSource {
 
     private Logger logger = LoggerFactory.getLogger(JdbcDataSource.class);

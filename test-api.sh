@@ -45,22 +45,6 @@ assert_not_contains() {
     fi
 }
 
-assert_equals() {
-    local test_name="$1"
-    local actual="$2"
-    local expected="$3"
-    TOTAL=$((TOTAL + 1))
-    if [ "$actual" = "$expected" ]; then
-        PASS=$((PASS + 1))
-        echo -e "  ${GREEN}✓${NC} $test_name"
-    else
-        FAIL=$((FAIL + 1))
-        echo -e "  ${RED}✗${NC} $test_name"
-        echo -e "    Expected: $expected"
-        echo -e "    Got: $actual"
-    fi
-}
-
 assert_http_status() {
     local test_name="$1"
     local status="$2"
@@ -75,100 +59,145 @@ assert_http_status() {
     fi
 }
 
+switch_party() {
+    curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d "{\"party\":\"$1\"}" > /dev/null
+}
+
 echo "=========================================="
 echo " Treasury Sandbox Integration Tests"
+echo " (4-party model: operator, member1,"
+echo "  member2, publicObserver)"
 echo "=========================================="
 echo ""
 
 # ==================================
-# Test 1: Demo Seeding
+# Test 1: Mode endpoint
 # ==================================
-echo -e "${YELLOW}[1] Demo Seeding${NC}"
-RESP=$(curl -s -X POST "$BASE_URL/api/demo/seed" -H "Content-Type: application/json")
-assert_contains "Seed returns success message" "$RESP" "Demo data seeded"
-assert_contains "Seed creates 3 strategies" "$RESP" '"strategiesCreated":3'
-assert_contains "Seed initializes epoch" "$RESP" '"epochInitialized":true'
+echo -e "${YELLOW}[1] Mode Endpoint${NC}"
+RESP=$(curl -s "$BASE_URL/api/mode")
+assert_contains "Mode returns standalone" "$RESP" '"mode":"standalone"'
 echo ""
 
 # ==================================
-# Test 2: Default Party (Public Observer)
+# Test 2: Bootstrap DAO
 # ==================================
-echo -e "${YELLOW}[2] Default Party Context${NC}"
-RESP=$(curl -s "$BASE_URL/api/current-party")
-assert_contains "Default party is publicObserver" "$RESP" '"role":"publicObserver"'
-assert_contains "Display name is Public Observer" "$RESP" '"displayName":"Public Observer"'
+echo -e "${YELLOW}[2] Bootstrap DAO${NC}"
+switch_party "operator"
+RESP=$(curl -s -X POST "$BASE_URL/api/bootstrap" -H "Content-Type: application/json")
+assert_contains "Bootstrap returns success" "$RESP" "DAO bootstrapped"
 echo ""
 
 # ==================================
-# Test 3: Epoch State
+# Test 3: DAO Config
 # ==================================
-echo -e "${YELLOW}[3] Epoch State${NC}"
+echo -e "${YELLOW}[3] DAO Config${NC}"
+RESP=$(curl -s "$BASE_URL/api/config")
+assert_contains "Config has operator" "$RESP" '"operator"'
+assert_contains "Config has members" "$RESP" '"members"'
+assert_contains "Config has member1" "$RESP" 'member1'
+assert_contains "Config has member2" "$RESP" 'member2'
+assert_contains "Config has publicObserver" "$RESP" '"publicObserver"'
+echo ""
+
+# ==================================
+# Test 4: Epoch State
+# ==================================
+echo -e "${YELLOW}[4] Epoch State${NC}"
 RESP=$(curl -s "$BASE_URL/api/epoch")
 assert_contains "Epoch starts at 0" "$RESP" '"currentEpoch":0'
 assert_contains "Total epochs is 12" "$RESP" '"totalEpochs":12'
 echo ""
 
 # ==================================
-# Test 4: Privacy — Public Observer CANNOT see allocations
+# Test 5: Party Switching
 # ==================================
-echo -e "${YELLOW}[4] Privacy — Public Observer View${NC}"
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"publicObserver"}' > /dev/null
+echo -e "${YELLOW}[5] Party Switching${NC}"
+for party in operator member1 member2 publicObserver; do
+    RESP=$(curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d "{\"party\":\"$party\"}")
+    assert_contains "Switch to $party returns partyId" "$RESP" "\"partyId\":\"$party\""
+done
+# Test invalid party
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"party":"hacker"}')
+assert_http_status "Invalid party returns 400" "$STATUS" "400"
+echo ""
+
+# ==================================
+# Test 6: Strategy Creation — Member1
+# ==================================
+echo -e "${YELLOW}[6] Strategy Creation — Member1${NC}"
+switch_party "member1"
+RESP=$(curl -s -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
+    -d '{"name":"Blue Chip Hold","allocations":{"bitcoin":0.5,"ethereum":0.3,"usd-coin":0.2}}')
+assert_contains "Strategy created" "$RESP" '"name":"Blue Chip Hold"'
+assert_contains "Strategy has ID" "$RESP" '"strategyId"'
+assert_contains "Creator is member1" "$RESP" '"creatorParty":"member1"'
+M1_STRAT_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['strategyId'])" 2>/dev/null || echo "strat-unknown")
+
+# Try creating a second strategy (should fail — 1 active max)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
+    -d '{"name":"Duplicate","allocations":{"bitcoin":1.0}}')
+assert_http_status "Second strategy rejected (1 max)" "$STATUS" "403"
+echo ""
+
+# ==================================
+# Test 7: Strategy Creation — Member2
+# ==================================
+echo -e "${YELLOW}[7] Strategy Creation — Member2${NC}"
+switch_party "member2"
+RESP=$(curl -s -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
+    -d '{"name":"Degen Yield","allocations":{"bitcoin":0.2,"ethereum":0.8}}')
+assert_contains "Member2 strategy created" "$RESP" '"name":"Degen Yield"'
+assert_contains "Creator is member2" "$RESP" '"creatorParty":"member2"'
+M2_STRAT_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['strategyId'])" 2>/dev/null || echo "strat-unknown")
+echo ""
+
+# ==================================
+# Test 8: Privacy — Member1 sees own allocations
+# ==================================
+echo -e "${YELLOW}[8] Privacy — Member1 View${NC}"
+switch_party "member1"
+RESP=$(curl -s "$BASE_URL/api/strategies")
+# Member1 should see their own allocations
+assert_contains "Member1 sees own allocations visible" "$RESP" '"isAllocationsVisible":true'
+# Member1 should NOT see member2's allocations
+assert_contains "Member1 sees some hidden allocations" "$RESP" '"isAllocationsVisible":false'
+echo ""
+
+# ==================================
+# Test 9: Privacy — Member2 sees own, not Member1's
+# ==================================
+echo -e "${YELLOW}[9] Privacy — Member2 View${NC}"
+switch_party "member2"
+RESP=$(curl -s "$BASE_URL/api/strategies")
+assert_contains "Member2 sees own allocations" "$RESP" '"isAllocationsVisible":true'
+assert_contains "Member2 sees some hidden" "$RESP" '"isAllocationsVisible":false'
+echo ""
+
+# ==================================
+# Test 10: Privacy — Public Observer sees NO allocations
+# ==================================
+echo -e "${YELLOW}[10] Privacy — Public Observer View${NC}"
+switch_party "publicObserver"
 RESP=$(curl -s "$BASE_URL/api/strategies")
 assert_contains "Public sees strategies" "$RESP" "Blue Chip Hold"
-assert_contains "Public sees Momentum Alpha" "$RESP" "Momentum Alpha"
 assert_contains "Public sees Degen Yield" "$RESP" "Degen Yield"
-assert_contains "Allocations are hidden (isAllocationsVisible:false)" "$RESP" '"isAllocationsVisible":false'
-assert_not_contains "Allocations values not exposed" "$RESP" '"ethWeight"'
+assert_not_contains "Public cannot see any allocations" "$RESP" '"isAllocationsVisible":true'
 echo ""
 
 # ==================================
-# Test 5: Privacy — Strategy Manager CAN see allocations
+# Test 11: Privacy — Operator sees NO allocations
 # ==================================
-echo -e "${YELLOW}[5] Privacy — Strategy Manager View${NC}"
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"strategyManager"}' > /dev/null
+echo -e "${YELLOW}[11] Privacy — Operator View${NC}"
+switch_party "operator"
 RESP=$(curl -s "$BASE_URL/api/strategies")
-assert_contains "Manager sees allocations (isAllocationsVisible:true)" "$RESP" '"isAllocationsVisible":true'
-assert_contains "Manager sees ethWeight" "$RESP" '"ethWeight"'
-assert_contains "Manager sees btcWeight" "$RESP" '"btcWeight"'
-assert_contains "Manager sees usdcWeight" "$RESP" '"usdcWeight"'
+assert_not_contains "Operator cannot see allocations" "$RESP" '"isAllocationsVisible":true'
 echo ""
 
 # ==================================
-# Test 6: Privacy — Auditor CAN see allocations
+# Test 12: Epoch Advancement + Performance
 # ==================================
-echo -e "${YELLOW}[6] Privacy — Auditor View${NC}"
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"auditor"}' > /dev/null
-RESP=$(curl -s "$BASE_URL/api/strategies")
-assert_contains "Auditor sees allocations" "$RESP" '"isAllocationsVisible":true'
-assert_contains "Auditor sees actual weights" "$RESP" '"ethWeight"'
-echo ""
-
-# ==================================
-# Test 7: Privacy — Voter CANNOT see allocations
-# ==================================
-echo -e "${YELLOW}[7] Privacy — Voter View${NC}"
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"voter1"}' > /dev/null
-RESP=$(curl -s "$BASE_URL/api/strategies")
-assert_contains "Voter sees strategies" "$RESP" "Momentum Alpha"
-assert_contains "Voter cannot see allocations" "$RESP" '"isAllocationsVisible":false'
-assert_not_contains "Voter does not get ethWeight" "$RESP" '"ethWeight"'
-echo ""
-
-# ==================================
-# Test 8: Party Switching (all roles)
-# ==================================
-echo -e "${YELLOW}[8] Party Switching${NC}"
-for role in operator strategyManager voter1 voter2 voter3 auditor publicObserver; do
-    RESP=$(curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d "{\"role\":\"$role\"}")
-    assert_contains "Switch to $role returns partyId" "$RESP" "\"partyId\":\"$role\""
-done
-echo ""
-
-# ==================================
-# Test 9: Epoch Advancement + Performance Calculation
-# ==================================
-echo -e "${YELLOW}[9] Epoch Advancement + Performance${NC}"
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"operator"}' > /dev/null
+echo -e "${YELLOW}[12] Epoch Advancement + Performance${NC}"
+switch_party "operator"
 
 # Advance to epoch 1
 RESP=$(curl -s -X POST "$BASE_URL/api/epoch/advance" -H "Content-Type: application/json")
@@ -191,102 +220,131 @@ assert_contains "Has epoch 2 performance" "$RESP" '"epoch":2'
 echo ""
 
 # ==================================
-# Test 10: Strategy Creation (Manager only)
+# Test 13: Voting Flow
 # ==================================
-echo -e "${YELLOW}[10] Strategy Creation${NC}"
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"strategyManager"}' > /dev/null
-RESP=$(curl -s -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
-    -d '{"name":"Test Strategy","riskCategory":"Moderate","allocations":{"ethWeight":0.33,"btcWeight":0.34,"usdcWeight":0.33}}')
-assert_contains "Strategy created" "$RESP" '"name":"Test Strategy"'
-assert_contains "Strategy has ID" "$RESP" '"strategyId"'
+echo -e "${YELLOW}[13] Voting Flow${NC}"
 
-# Verify it appears in list
-RESP=$(curl -s "$BASE_URL/api/strategies")
-assert_contains "New strategy in list" "$RESP" "Test Strategy"
-echo ""
-
-# ==================================
-# Test 11: Voting Flow
-# ==================================
-echo -e "${YELLOW}[11] Voting Flow${NC}"
-
-# Open voting
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"operator"}' > /dev/null
+# Open voting (operator)
+switch_party "operator"
 RESP=$(curl -s -X POST "$BASE_URL/api/epoch/open-voting" -H "Content-Type: application/json")
 assert_contains "Voting opened" "$RESP" '"phase":"Voting"'
 
-# Voter 1 votes
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"voter1"}' > /dev/null
+# Member1 votes to eliminate member2's strategy
+switch_party "member1"
 RESP=$(curl -s -X POST "$BASE_URL/api/votes" -H "Content-Type: application/json" \
-    -d '{"targetStrategyId":"strat-conservative"}')
-assert_contains "Voter1 cast vote" "$RESP" '"voter"'
+    -d "{\"targetStrategyId\":\"$M2_STRAT_ID\"}")
+assert_contains "Member1 cast vote" "$RESP" '"voter"'
 
-# Voter 2 votes
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"voter2"}' > /dev/null
+# Member2 votes to eliminate member1's strategy
+switch_party "member2"
 RESP=$(curl -s -X POST "$BASE_URL/api/votes" -H "Content-Type: application/json" \
-    -d '{"targetStrategyId":"strat-conservative"}')
-assert_contains "Voter2 cast vote" "$RESP" '"voter"'
-
-# Voter 3 votes for different strategy
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"voter3"}' > /dev/null
-RESP=$(curl -s -X POST "$BASE_URL/api/votes" -H "Content-Type: application/json" \
-    -d '{"targetStrategyId":"strat-aggressive"}')
-assert_contains "Voter3 cast vote" "$RESP" '"voter"'
+    -d "{\"targetStrategyId\":\"$M1_STRAT_ID\"}")
+assert_contains "Member2 cast vote" "$RESP" '"voter"'
 
 # Check votes
 RESP=$(curl -s "$BASE_URL/api/votes/2")
 assert_contains "Votes recorded" "$RESP" '"targetStrategyId"'
+
+# Member2 tries to vote again (should fail)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/votes" -H "Content-Type: application/json" \
+    -d "{\"targetStrategyId\":\"$M1_STRAT_ID\"}")
+assert_http_status "Double vote rejected" "$STATUS" "400"
 echo ""
 
 # ==================================
-# Test 12: Elimination
+# Test 14: Non-member cannot vote
 # ==================================
-echo -e "${YELLOW}[12] Elimination${NC}"
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"operator"}' > /dev/null
+echo -e "${YELLOW}[14] Non-member Cannot Vote${NC}"
+switch_party "publicObserver"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/votes" -H "Content-Type: application/json" \
+    -d "{\"targetStrategyId\":\"$M1_STRAT_ID\"}")
+assert_http_status "Public observer cannot vote" "$STATUS" "400"
+
+switch_party "operator"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/votes" -H "Content-Type: application/json" \
+    -d "{\"targetStrategyId\":\"$M1_STRAT_ID\"}")
+assert_http_status "Operator cannot vote" "$STATUS" "400"
+echo ""
+
+# ==================================
+# Test 15: Elimination
+# ==================================
+echo -e "${YELLOW}[15] Elimination${NC}"
+switch_party "operator"
 RESP=$(curl -s -X POST "$BASE_URL/api/elimination/execute" -H "Content-Type: application/json")
 assert_contains "Elimination executed" "$RESP" '"eliminatedStrategyId"'
-assert_contains "Conservative eliminated (2 votes)" "$RESP" "strat-conservative"
 
 # Verify elimination in history
 RESP=$(curl -s "$BASE_URL/api/eliminations")
-assert_contains "Elimination in history" "$RESP" "strat-conservative"
+assert_contains "Elimination in history" "$RESP" '"eliminatedStrategyId"'
 
-# Verify strategy marked as eliminated
+# Verify a strategy is marked as eliminated
 RESP=$(curl -s "$BASE_URL/api/strategies")
 assert_contains "Strategy marked eliminated" "$RESP" '"status":"Eliminated"'
 echo ""
 
 # ==================================
-# Test 13: Privacy Consistency After Elimination
+# Test 16: Eliminated member can create new strategy
 # ==================================
-echo -e "${YELLOW}[13] Privacy After Elimination${NC}"
-
-# Public still can't see allocations
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"publicObserver"}' > /dev/null
-RESP=$(curl -s "$BASE_URL/api/strategies")
-assert_contains "Public still can't see allocations" "$RESP" '"isAllocationsVisible":false'
-assert_not_contains "Public still doesn't get weights" "$RESP" '"ethWeight"'
-
-# Public CAN see eliminations
-RESP=$(curl -s "$BASE_URL/api/eliminations")
-assert_contains "Public sees elimination results" "$RESP" "strat-conservative"
-
-# Auditor still sees everything
-curl -s -X POST "$BASE_URL/api/party/switch" -H "Content-Type: application/json" -d '{"role":"auditor"}' > /dev/null
-RESP=$(curl -s "$BASE_URL/api/strategies")
-assert_contains "Auditor still sees allocations" "$RESP" '"isAllocationsVisible":true'
+echo -e "${YELLOW}[16] Eliminated Member Creates New Strategy${NC}"
+# Figure out which member was eliminated
+switch_party "member1"
+RESP=$(curl -s "$BASE_URL/api/current-party")
+HAS_ACTIVE=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('hasActiveStrategy','true'))" 2>/dev/null || echo "true")
+if [ "$HAS_ACTIVE" = "False" ] || [ "$HAS_ACTIVE" = "false" ]; then
+    RESP=$(curl -s -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
+        -d '{"name":"Recovery Play","allocations":{"bitcoin":0.6,"ethereum":0.4}}')
+    assert_contains "Eliminated member1 creates new strategy" "$RESP" '"name":"Recovery Play"'
+else
+    switch_party "member2"
+    RESP=$(curl -s -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
+        -d '{"name":"Recovery Play","allocations":{"bitcoin":0.6,"ethereum":0.4}}')
+    assert_contains "Eliminated member2 creates new strategy" "$RESP" '"name":"Recovery Play"'
+fi
 echo ""
 
 # ==================================
-# Test 14: DAO Config
+# Test 17: Privacy After Elimination
 # ==================================
-echo -e "${YELLOW}[14] DAO Config${NC}"
-RESP=$(curl -s "$BASE_URL/api/config")
-assert_contains "Config has operator" "$RESP" '"operator"'
-assert_contains "Config has strategyManager" "$RESP" '"strategyManager"'
-assert_contains "Config has voters" "$RESP" '"voters"'
-assert_contains "Config has auditor" "$RESP" '"auditor"'
-assert_contains "Config has publicObserver" "$RESP" '"publicObserver"'
+echo -e "${YELLOW}[17] Privacy Consistency After Elimination${NC}"
+switch_party "publicObserver"
+RESP=$(curl -s "$BASE_URL/api/strategies")
+assert_not_contains "Public still can't see allocations" "$RESP" '"isAllocationsVisible":true'
+
+# Public CAN see eliminations
+RESP=$(curl -s "$BASE_URL/api/eliminations")
+assert_contains "Public sees elimination results" "$RESP" '"eliminatedStrategyId"'
+echo ""
+
+# ==================================
+# Test 18: Non-member cannot create strategy
+# ==================================
+echo -e "${YELLOW}[18] Non-member Cannot Create Strategy${NC}"
+switch_party "publicObserver"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
+    -d '{"name":"Hacker","allocations":{"bitcoin":1.0}}')
+assert_http_status "Public observer cannot create strategy" "$STATUS" "403"
+
+switch_party "operator"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/strategies" -H "Content-Type: application/json" \
+    -d '{"name":"Hacker","allocations":{"bitcoin":1.0}}')
+assert_http_status "Operator cannot create strategy" "$STATUS" "403"
+echo ""
+
+# ==================================
+# Test 19: Current Party Endpoint
+# ==================================
+echo -e "${YELLOW}[19] Current Party Endpoint${NC}"
+switch_party "member1"
+RESP=$(curl -s "$BASE_URL/api/current-party")
+assert_contains "Current party is member1" "$RESP" '"partyId":"member1"'
+assert_contains "isMember is true" "$RESP" '"isMember":"true"'
+assert_contains "isOperator is false" "$RESP" '"isOperator":"false"'
+
+switch_party "operator"
+RESP=$(curl -s "$BASE_URL/api/current-party")
+assert_contains "Current party is operator" "$RESP" '"partyId":"operator"'
+assert_contains "isOperator is true" "$RESP" '"isOperator":"true"'
 echo ""
 
 # ==================================

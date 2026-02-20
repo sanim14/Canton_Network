@@ -1,47 +1,46 @@
 -- | Confidential Strategy contract - allocations are private.
--- Only the strategy manager and auditor can see the actual allocation weights.
+-- Only the creator and operator can see the actual allocation weights.
+-- Other members and public observers CANNOT see this contract at all.
 module Treasury.Strategy where
 
 import Treasury.Types
 
 -- | A confidential treasury strategy with private allocation weights.
--- Privacy model: Only signatory (strategyManager) and observer (auditor) can see this contract.
--- Voters and public observers CANNOT see the allocations.
+-- Privacy model: Only signatory (creator) and observer (operator) can see this contract.
+-- Other members cannot see the allocations — Canton won't sync this contract to them.
 template ConfidentialStrategy
   with
     strategyId : Text           -- ^ Unique identifier
     name : Text                 -- ^ Human-readable name
-    riskCategory : RiskCategory -- ^ Risk classification
-    allocations : Allocation    -- ^ Private allocation weights
+    allocations : Allocation    -- ^ Private allocation weights (dynamic tokens)
     epoch : Int                 -- ^ Epoch when created/last updated
     status : StrategyStatus     -- ^ Active or Eliminated
-    strategyManager : Party     -- ^ Creator and manager of this strategy
-    auditor : Party             -- ^ Auditor who can see allocations
+    creator : Party             -- ^ The member who created this (signatory)
+    operator : Party            -- ^ System operator (observer for admin)
   where
-    signatory strategyManager
-    observer auditor
+    signatory creator
+    observer operator
 
-    -- | Update allocation weights (only strategy manager can do this)
+    -- | Update allocation weights (only creator can do this)
     choice UpdateAllocations : ContractId ConfidentialStrategy
       with
         newAllocations : Allocation
         currentEpoch : Int
-      controller strategyManager
+      controller creator
       do
         assertMsg "Strategy must be active" (status == Active)
-        assertMsg "Allocations must sum to 1.0"
-          (newAllocations.ethWeight + newAllocations.btcWeight + newAllocations.usdcWeight == 1.0)
+        let totalWeight = foldl (\acc (_, w) -> acc + w) 0.0 newAllocations.weights
+        assertMsg "Allocations must sum to 1.0" (totalWeight == 1.0)
         create this with
           allocations = newAllocations
           epoch = currentEpoch
 
-    -- | Mark strategy as eliminated
+    -- | Mark strategy as eliminated (operator archives after vote)
     choice ArchiveStrategy : ContractId ConfidentialStrategy
       with
         eliminationEpoch : Int
-      controller strategyManager
+      controller operator
       do
-        assertMsg "Strategy must be active" (status == Active)
         create this with
           status = Eliminated
           epoch = eliminationEpoch

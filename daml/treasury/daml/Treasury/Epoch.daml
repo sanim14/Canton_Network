@@ -11,14 +11,12 @@ template EpochState
     totalEpochs : Int           -- ^ Total epochs in the simulation (e.g., 12)
     phase : EpochPhase          -- ^ Current phase of the epoch
     operator : Party            -- ^ System operator (signatory)
-    strategyManager : Party     -- ^ Strategy manager (observer)
-    voters : [Party]            -- ^ Voters (observers)
-    auditor : Party             -- ^ Auditor (observer)
+    members : [Party]           -- ^ DAO members (observers)
     publicObserver : Party      -- ^ Public viewer (observer)
   where
     signatory operator
-    observer strategyManager, auditor, publicObserver
-    observer voters
+    observer members
+    observer publicObserver
 
     -- | Advance to the next epoch (opens reporting phase)
     choice AdvanceEpoch : ContractId EpochState

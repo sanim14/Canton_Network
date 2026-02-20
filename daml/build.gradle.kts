@@ -52,7 +52,7 @@ fun computeSdkVariables(): Map<String, Any> {
 
     val sdkOs = when {
         isWindows -> "windows-x86_64"
-        isMac -> "macos-x86_64"
+        isMac -> "macos-x86_64"  // No ARM build available; x86_64 runs via Rosetta 2
         isUnix -> when {
             osArch.contains("arm") || osArch.contains("aarch64") -> "linux-aarch64"
             else -> "linux-x86_64"

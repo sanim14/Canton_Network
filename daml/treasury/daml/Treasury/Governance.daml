@@ -5,15 +5,16 @@ module Treasury.Governance where
 -- Privacy model: Votes are public - everyone can see who voted for what.
 template EliminationVote
   with
-    voter : Party               -- ^ The voter casting this ballot
+    voter : Party               -- ^ The member casting this ballot
     epoch : Int                 -- ^ Which epoch this vote is for
     targetStrategyId : Text     -- ^ Strategy being voted for elimination
-    strategyManager : Party     -- ^ Strategy manager (observer)
-    auditor : Party             -- ^ Auditor (observer)
+    operator : Party            -- ^ System operator (observer)
+    members : [Party]           -- ^ DAO members (observers)
     publicObserver : Party      -- ^ Public viewer (observer)
   where
     signatory voter
-    observer strategyManager, auditor, publicObserver
+    observer operator, publicObserver
+    observer members
 
 -- | Immutable record of an elimination result.
 -- Privacy model: Visible to everyone.
@@ -24,11 +25,9 @@ template EliminationResult
     eliminatedStrategyName : Text    -- ^ Name of eliminated strategy
     voteTally : [(Text, Int)]        -- ^ Vote counts per strategy
     operator : Party                 -- ^ System operator (signatory)
-    strategyManager : Party          -- ^ Strategy manager (observer)
-    voters : [Party]                 -- ^ Voters (observers)
-    auditor : Party                  -- ^ Auditor (observer)
+    members : [Party]                -- ^ DAO members (observers)
     publicObserver : Party           -- ^ Public viewer (observer)
   where
     signatory operator
-    observer strategyManager, auditor, publicObserver
-    observer voters
+    observer members
+    observer publicObserver

@@ -79,16 +79,29 @@ public class LedgerApi {
             T entity,
             String commandId
     ) {
+        return createAs(entity, commandId, appProviderParty);
+    }
+
+    /**
+     * Create a contract acting as the specified party.
+     */
+    @WithSpan
+    public <T extends Template> CompletableFuture<Void> createAs(
+            T entity,
+            String commandId,
+            String actAsParty
+    ) {
         var ctx = tracingCtx(logger, "Creating contract",
                 "commandId", commandId,
                 "templateId", entity.templateId().toString(),
-                "applicationId", APP_ID
+                "applicationId", APP_ID,
+                "actAs", actAsParty
         );
         return traceWithStartEvent(ctx, () -> {
             CommandsOuterClass.Command.Builder command = CommandsOuterClass.Command.newBuilder();
             ValueOuterClass.Value payload = dto2Proto.template(entity.templateId()).convert(entity);
             command.getCreateBuilder().setTemplateId(toIdentifier(entity.templateId())).setCreateArguments(payload.getRecord());
-            return submitCommands(List.of(command.build()), commandId).thenApply(submitResponse -> null);
+            return submitCommandsAs(List.of(command.build()), commandId, List.of(), actAsParty).thenApply(submitResponse -> null);
         });
     }
 
@@ -110,12 +123,28 @@ public class LedgerApi {
             String commandId,
             List<CommandsOuterClass.DisclosedContract> disclosedContracts
     ) {
+        return exerciseAndGetResultAs(contractId, choice, commandId, disclosedContracts, appProviderParty);
+    }
+
+    /**
+     * Exercise a choice acting as the specified party.
+     */
+    @WithSpan
+    public <T extends Template, Result, C extends Choice<T, Result>>
+    CompletableFuture<Result> exerciseAndGetResultAs(
+            ContractId<T> contractId,
+            C choice,
+            String commandId,
+            List<CommandsOuterClass.DisclosedContract> disclosedContracts,
+            String actAsParty
+    ) {
         var ctx = tracingCtx(logger, "Exercising choice",
                 "commandId", commandId,
                 "contractId", contractId.getContractId,
                 "choiceName", choice.choiceName(),
                 "templateId", choice.templateId().toString(),
-                "applicationId", APP_ID
+                "applicationId", APP_ID,
+                "actAs", actAsParty
         );
         return trace(ctx, () -> {
             CommandsOuterClass.Command.Builder cmdBuilder = CommandsOuterClass.Command.newBuilder();
@@ -130,8 +159,8 @@ public class LedgerApi {
 
             CommandsOuterClass.Commands.Builder commandsBuilder = CommandsOuterClass.Commands.newBuilder()
                     .setCommandId(commandId)
-                    .addActAs(appProviderParty)
-                    .addReadAs(appProviderParty)
+                    .addActAs(actAsParty)
+                    .addReadAs(actAsParty)
                     .addCommands(cmdBuilder.build());
 
             if (disclosedContracts != null && !disclosedContracts.isEmpty()) {
@@ -139,7 +168,7 @@ public class LedgerApi {
             }
 
             var eventFormat = TransactionFilterOuterClass.EventFormat.newBuilder()
-                    .putFiltersByParty(appProviderParty, TransactionFilterOuterClass.Filters.newBuilder().build())
+                    .putFiltersByParty(actAsParty, TransactionFilterOuterClass.Filters.newBuilder().build())
                     .build();
             var transactionShape = TransactionFilterOuterClass.TransactionShape.TRANSACTION_SHAPE_LEDGER_EFFECTS;
             var transactionFormat =
@@ -154,7 +183,7 @@ public class LedgerApi {
                             .build();
 
             addEventWithAttributes(Span.current(), "built ledger submit request", Map.of());
-            logger.info("Submitting ledger command");
+            logger.info("Submitting ledger command as {}", actAsParty);
             return toCompletableFuture(commands.submitAndWaitForTransaction(request))
                     .thenApply(response -> {
                         TransactionOuterClass.Transaction txTree = response.getTransaction();
@@ -193,16 +222,30 @@ public class LedgerApi {
             String commandId,
             List<CommandsOuterClass.DisclosedContract> disclosedContracts
     ) {
+        return submitCommandsAs(cmds, commandId, disclosedContracts, appProviderParty);
+    }
+
+    /**
+     * Submit commands acting as the specified party.
+     */
+    @WithSpan
+    public CompletableFuture<CommandSubmissionServiceOuterClass.SubmitResponse> submitCommandsAs(
+            List<CommandsOuterClass.Command> cmds,
+            String commandId,
+            List<CommandsOuterClass.DisclosedContract> disclosedContracts,
+            String actAsParty
+    ) {
         var ctx = tracingCtx(logger, "Submitting commands",
                 "commands.count", cmds.size(),
                 "commandId", commandId,
-                "applicationId", APP_ID
+                "applicationId", APP_ID,
+                "actAs", actAsParty
         );
         return trace(ctx, () -> {
             CommandsOuterClass.Commands.Builder commandsBuilder = CommandsOuterClass.Commands.newBuilder()
                     .setCommandId(commandId)
-                    .addActAs(appProviderParty)
-                    .addReadAs(appProviderParty)
+                    .addActAs(actAsParty)
+                    .addReadAs(actAsParty)
                     .addAllCommands(cmds);
 
             if (disclosedContracts != null && !disclosedContracts.isEmpty()) {

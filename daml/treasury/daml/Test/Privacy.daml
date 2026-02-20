@@ -11,31 +11,28 @@ import Treasury.Config
 import Treasury.Epoch
 import Treasury.Governance
 
--- | Test that voters CANNOT see ConfidentialStrategy contracts
-privacyTest_voterCannotSeeStrategy : Script ()
-privacyTest_voterCannotSeeStrategy = script do
-  -- Setup parties
+-- | Test that other members CANNOT see a creator's ConfidentialStrategy
+privacyTest_memberCannotSeeOthersStrategy : Script ()
+privacyTest_memberCannotSeeOthersStrategy = script do
   operator <- allocateParty "operator"
-  strategyManager <- allocateParty "strategyManager"
-  voter1 <- allocateParty "voter1"
-  auditor <- allocateParty "auditor"
+  member1 <- allocateParty "member1"
+  member2 <- allocateParty "member2"
   publicObserver <- allocateParty "publicObserver"
 
-  -- Create a confidential strategy
-  strategyCid <- submit strategyManager do
+  -- Member1 creates a confidential strategy
+  strategyCid <- submit member1 do
     createCmd ConfidentialStrategy with
       strategyId = "strat-1"
       name = "Blue Chip Hold"
-      riskCategory = Conservative
-      allocations = Allocation with ethWeight = 0.2; btcWeight = 0.2; usdcWeight = 0.6
+      allocations = Allocation with weights = [("bitcoin", 0.5), ("ethereum", 0.3), ("usd-coin", 0.2)]
       epoch = 1
       status = Active
-      strategyManager
-      auditor
+      creator = member1
+      operator
 
-  -- Voter should NOT be able to see the strategy
-  strategyVisible <- queryContractId voter1 strategyCid
-  assertMsg "Voter should NOT see ConfidentialStrategy" (strategyVisible == None)
+  -- Member2 should NOT be able to see the strategy
+  member2Visible <- queryContractId member2 strategyCid
+  assertMsg "Member2 should NOT see Member1's ConfidentialStrategy" (member2Visible == None)
 
   -- Public observer should NOT see the strategy
   publicVisible <- queryContractId publicObserver strategyCid
@@ -43,84 +40,85 @@ privacyTest_voterCannotSeeStrategy = script do
 
   pure ()
 
--- | Test that auditor CAN see ConfidentialStrategy contracts
-privacyTest_auditorCanSeeStrategy : Script ()
-privacyTest_auditorCanSeeStrategy = script do
+-- | Test that the creator CAN see their own strategy
+privacyTest_creatorCanSeeOwnStrategy : Script ()
+privacyTest_creatorCanSeeOwnStrategy = script do
   operator <- allocateParty "operator"
-  strategyManager <- allocateParty "strategyManager"
-  auditor <- allocateParty "auditor"
+  member1 <- allocateParty "member1"
 
-  strategyCid <- submit strategyManager do
+  strategyCid <- submit member1 do
     createCmd ConfidentialStrategy with
       strategyId = "strat-1"
       name = "Blue Chip Hold"
-      riskCategory = Conservative
-      allocations = Allocation with ethWeight = 0.2; btcWeight = 0.2; usdcWeight = 0.6
+      allocations = Allocation with weights = [("bitcoin", 0.5), ("ethereum", 0.3), ("usd-coin", 0.2)]
       epoch = 1
       status = Active
-      strategyManager
-      auditor
+      creator = member1
+      operator
 
-  -- Auditor SHOULD see the strategy
-  strategyVisible <- queryContractId auditor strategyCid
-  assertMsg "Auditor SHOULD see ConfidentialStrategy" (strategyVisible /= None)
+  -- Creator SHOULD see their own strategy
+  creatorVisible <- queryContractId member1 strategyCid
+  assertMsg "Creator SHOULD see own ConfidentialStrategy" (creatorVisible /= None)
 
-  -- Strategy manager SHOULD see their own strategy
-  managerVisible <- queryContractId strategyManager strategyCid
-  assertMsg "Manager SHOULD see ConfidentialStrategy" (managerVisible /= None)
+  -- Operator (observer) SHOULD also see it
+  operatorVisible <- queryContractId operator strategyCid
+  assertMsg "Operator SHOULD see ConfidentialStrategy" (operatorVisible /= None)
 
   pure ()
 
--- | Test that voters CAN see PerformanceReport contracts
-privacyTest_voterCanSeePerformance : Script ()
-privacyTest_voterCanSeePerformance = script do
-  strategyManager <- allocateParty "strategyManager"
-  voter1 <- allocateParty "voter1"
-  auditor <- allocateParty "auditor"
+-- | Test that all parties CAN see PerformanceReport contracts
+privacyTest_allCanSeePerformance : Script ()
+privacyTest_allCanSeePerformance = script do
+  operator <- allocateParty "operator"
+  member1 <- allocateParty "member1"
+  member2 <- allocateParty "member2"
   publicObserver <- allocateParty "publicObserver"
 
-  reportCid <- submit strategyManager do
+  reportCid <- submit operator do
     createCmd PerformanceReport with
       strategyId = "strat-1"
       strategyName = "Blue Chip Hold"
-      riskCategory = Conservative
       epoch = 1
       epochReturn = 0.05
       cumulativeReturn = 0.05
       maxDrawdown = 0.0
-      strategyManager
-      voters = [voter1]
-      auditor
+      operator
+      members = [member1, member2]
       publicObserver
 
-  -- Voter SHOULD see performance reports
-  voterVisible <- queryContractId voter1 reportCid
-  assertMsg "Voter SHOULD see PerformanceReport" (voterVisible /= None)
+  -- All parties should see performance reports
+  member1Visible <- queryContractId member1 reportCid
+  assertMsg "Member1 SHOULD see PerformanceReport" (member1Visible /= None)
+
+  member2Visible <- queryContractId member2 reportCid
+  assertMsg "Member2 SHOULD see PerformanceReport" (member2Visible /= None)
+
+  publicVisible <- queryContractId publicObserver reportCid
+  assertMsg "Public SHOULD see PerformanceReport" (publicVisible /= None)
 
   pure ()
 
--- | Test that a voter CANNOT exercise UpdateAllocations on a strategy
-privacyTest_voterCannotUpdateAllocations : Script ()
-privacyTest_voterCannotUpdateAllocations = script do
-  strategyManager <- allocateParty "strategyManager"
-  voter1 <- allocateParty "voter1"
-  auditor <- allocateParty "auditor"
+-- | Test that only the creator can update allocations
+privacyTest_onlyCreatorCanUpdateAllocations : Script ()
+privacyTest_onlyCreatorCanUpdateAllocations = script do
+  operator <- allocateParty "operator"
+  member1 <- allocateParty "member1"
+  member2 <- allocateParty "member2"
 
-  strategyCid <- submit strategyManager do
+  strategyCid <- submit member1 do
     createCmd ConfidentialStrategy with
       strategyId = "strat-1"
       name = "Blue Chip Hold"
-      riskCategory = Conservative
-      allocations = Allocation with ethWeight = 0.2; btcWeight = 0.2; usdcWeight = 0.6
+      allocations = Allocation with weights = [("bitcoin", 0.5), ("ethereum", 0.3), ("usd-coin", 0.2)]
       epoch = 1
       status = Active
-      strategyManager
-      auditor
+      creator = member1
+      operator
 
-  -- Voter trying to update allocations should fail
-  submitMustFail voter1 do
+  -- Member2 trying to update allocations should fail
+  submitMustFail member2 do
     exerciseCmd strategyCid UpdateAllocations with
-      newAllocations = Allocation with ethWeight = 0.5; btcWeight = 0.3; usdcWeight = 0.2
+      newAllocations = Allocation with weights = [("bitcoin", 0.8), ("ethereum", 0.2)]
       currentEpoch = 2
 
   pure ()
@@ -129,9 +127,8 @@ privacyTest_voterCannotUpdateAllocations = script do
 privacyTest_epochWorkflow : Script ()
 privacyTest_epochWorkflow = script do
   operator <- allocateParty "operator"
-  strategyManager <- allocateParty "strategyManager"
-  voter1 <- allocateParty "voter1"
-  auditor <- allocateParty "auditor"
+  member1 <- allocateParty "member1"
+  member2 <- allocateParty "member2"
   publicObserver <- allocateParty "publicObserver"
 
   epochCid <- submit operator do
@@ -140,9 +137,7 @@ privacyTest_epochWorkflow = script do
       totalEpochs = 12
       phase = Completed
       operator
-      strategyManager
-      voters = [voter1]
-      auditor
+      members = [member1, member2]
       publicObserver
 
   -- Advance epoch
@@ -162,7 +157,10 @@ privacyTest_epochWorkflow = script do
   assertMsg "Phase should be Voting" (epochState2.phase == Voting)
 
   -- All parties should see epoch state
-  voterVisible <- queryContractId voter1 epochCid3
-  assertMsg "Voter should see EpochState" (voterVisible /= None)
+  member1Visible <- queryContractId member1 epochCid3
+  assertMsg "Member1 should see EpochState" (member1Visible /= None)
+
+  publicVisible <- queryContractId publicObserver epochCid3
+  assertMsg "Public should see EpochState" (publicVisible /= None)
 
   pure ()
